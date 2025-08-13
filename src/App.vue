@@ -38,7 +38,7 @@ const metadata = {
 createAppKit({
   adapters: [ethersAdapter],
   networks,
-  projectId,
+  projectId: 'f4947d13ddbff0d4dddc5a731c63b6d5',
   metadata,
   themeMode: 'light',
   features: {
