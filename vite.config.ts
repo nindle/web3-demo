@@ -19,5 +19,6 @@ export default defineConfig({
         },
       },
     }),
-  ]
+  ],
+  base: '/web3-demo/'
 })

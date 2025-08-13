@@ -20,17 +20,26 @@
 <script lang="ts">
 import {
   createAppKit,
+  useAppKit 
 } from '@reown/appkit/vue'
 import {ethersAdapter , networks, projectId } from './config/index'
 
 import ActionButtonList from "./components/ActionButton.vue"
 import InfoList from "./components/InfoList.vue";
 
+const metadata = {
+  name: "Web3 Demo",
+  description: "Web3 Demo",
+  url: "https://nindle.github.io/web3-demo", // url must match your domain & subdomain
+  icons: ["https://avatars.mywebsite.com/"],
+};
+
 // Initialize AppKit
 createAppKit({
   adapters: [ethersAdapter],
   networks,
   projectId,
+  metadata,
   themeMode: 'light',
   features: {
     analytics: true, // Optional - defaults to your Cloud configuration
@@ -40,12 +49,9 @@ createAppKit({
   themeVariables: {
     '--w3m-accent': '#000000',
   },
-  // 移动端钱包连接优化配置
-  enableWalletConnect: true,
-  enableInjected: true,
-  enableEIP6963: true,
-  enableCoinbase: true
 })
+
+const modal = useAppKit();
 
 export default {
   name: "App",
