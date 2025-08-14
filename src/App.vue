@@ -2,16 +2,10 @@
 <template>
   <div class="pages">
       <img src="/reown.svg" alt="Reown" width="150" height="150" />
-      <h1>AppKit ethers vue Example</h1>
+      <h1>测试demo</h1>
 
       <appkit-button />
       <ActionButtonList />
-      <div className="advice">
-        <p>
-          123 <br/>
-          Go to <a href="https://cloud.reown.com" target="_blank" className="link-button" rel="Reown Cloud">Reown Cloud</a> to get your own.
-        </p>
-      </div>
       <InfoList />
    </div>
 </template>
@@ -20,7 +14,7 @@
 <script lang="ts">
 import {
   createAppKit,
-  useAppKit 
+  useAppKit
 } from '@reown/appkit/vue'
 import {ethersAdapter , networks, projectId } from './config/index'
 
