@@ -83,14 +83,25 @@ export class ContractService {
    * 获取 ETH 余额
    */
   async getEthBalance(address: string): Promise<string> {
-    if (!this.provider) await this.refreshProvider()
-
     try {
+      if (!this.provider) await this.refreshProvider()
+
+      // 验证地址有效性
+      if (!ethers.isAddress(address)) {
+        throw new Error(`无效的地址: ${address}`)
+      }
+
       const balance = await this.provider.getBalance(address)
       return ethers.formatEther(balance)
-    } catch (error) {
+    } catch (error: any) {
       console.error('获取 ETH 余额失败:', error)
-      throw error
+
+      // 更友好的错误信息
+      if (error.message?.includes('未检测到钱包')) {
+        throw new Error('钱包未连接，请先连接钱包后再试')
+      }
+
+      throw new Error(`获取 ETH 余额失败: ${error.message || error}`)
     }
   }
 
