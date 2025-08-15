@@ -286,7 +286,7 @@ export default {
         tokenBalance.value = parseFloat(tokenBal).toFixed(2)
 
       } catch (err: any) {
-        error.value = `获取余额失败: ${err.message}`
+        error.value = `获取余额失败1: ${err.message}`
         console.error('获取余额失败:', err)
       } finally {
         loading.value = false

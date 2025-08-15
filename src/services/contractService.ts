@@ -200,7 +200,7 @@ export class ContractService {
 
       // 处理 balance
       if (balanceResult.status === 'rejected') {
-        throw new Error(`获取余额失败: ${balanceResult.reason?.message}`)
+        throw new Error(`获取余额失败2: ${balanceResult.reason?.message}`)
       }
 
       const balance = balanceResult.value
