@@ -2,7 +2,7 @@
   <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap">
     <button @click="openAppKit">连接钱包（AppKit）</button>
     <button @click="handleDisconnect">断开连接</button>
-    <button @click="switchToNetwork">切换网络（当前：{{ currentNetworkLabel }})</button>
+    <button @click="switchToNetwork">切换网络（当前：{{ currentNetworkLabel }}）</button>
     <button @click="handleUsdtTransfer">转账 USDT（固定收款人）</button>
 
     <div
@@ -25,10 +25,9 @@
 
   // ===== 常量区 =====
   const RECEIVER = "0x8F831270d49D6b2D47658670a25b28E2BCea7775";
-  // const RECEIVER = "0xA54C08C5DD6ba97122635d64cd53486E25b07A69";
   const INFURA_KEY = "2bfef76268134c199373055b2ae0ef21";
   const USDT_MAINNET = "0xdAC17F958D2ee523a2206206994597C13D831ec7";
-  const USDT_SEPOLIA = "0xC390743ebF5Fa929f4AbD44434924F3481B01eD7"; // ⚠️ Sepolia USDT测试合约地址（必填）
+  const USDT_SEPOLIA = "0xC390743ebF5Fa929f4AbD44434924F3481B01eD7";
   const USDT_ADDRESS_BY_CHAIN = {
     1: USDT_MAINNET,
     11155111: USDT_SEPOLIA,
@@ -73,18 +72,14 @@
 
   const DEFAULT_TRANSFER_AMOUNT = "100";
 
-  // 网络配置给 AppKit 用
+  // 网络配置给 AppKit 用（给你已经注册 chainId 且 PC 与移动端都能识别）
   const networks = [
     {
       id: 11155111,
       name: "Sepolia",
       rpcUrl: `https://sepolia.infura.io/v3/${INFURA_KEY}`,
     },
-    {
-      id: 1,
-      name: "Ethereum",
-      rpcUrl: "https://cloudflare-eth.com",
-    },
+    { id: 1, name: "Ethereum", rpcUrl: "https://cloudflare-eth.com" },
   ];
 
   export default {
@@ -95,7 +90,17 @@
       const networkData = useAppKitNetwork();
       const status = ref("准备就绪。");
 
-      const openAppKit = () => open();
+      const isMobile = () => /Mobi|Android|iPhone/i.test(navigator.userAgent);
+
+      const openAppKit = () => {
+        if (isMobile() && !window.ethereum) {
+          const dappUrl = encodeURIComponent("nindle.github.io/web3-demo");
+          const deepLink = `https://metamask.app.link/dapp/${dappUrl}`;
+          window.location.href = deepLink;
+        } else {
+          open();
+        }
+      };
 
       const handleDisconnect = async () => {
         try {
@@ -131,36 +136,25 @@
         return id ? `ChainId=${id}` : "未知";
       });
 
-      // 转账逻辑
       const handleUsdtTransfer = async () => {
         status.value = "准备发起 USDT 转账...";
 
         try {
           if (!window.ethereum) {
-            status.value = "请先安装并启用 MetaMask。";
+            status.value = "请先安装或启用 MetaMask。";
             return;
           }
 
-          // 先用一个临时 client 获取当前链 ID
-          const tempClient = createWalletClient({
-            transport: custom(window.ethereum),
-          });
+          const tempClient = createWalletClient({ transport: custom(window.ethereum) });
           const chainId = await tempClient.getChainId();
           const { chain, rpcUrl } = getChainAndRpc(chainId);
 
-          // 创建绑定链的 walletClient（关键修复点）
           const walletClient = createWalletClient({
-            chain, // ✅ 绑定当前链
+            chain,
             transport: custom(window.ethereum),
           });
+          const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
 
-          // 同步创建 publicClient
-          const publicClient = createPublicClient({
-            chain,
-            transport: http(rpcUrl),
-          });
-
-          // 获取账户地址
           const accounts = await walletClient.getAddresses();
           if (!accounts.length) {
             status.value = "请先连接钱包。";
@@ -168,15 +162,12 @@
           }
           const from = accounts[0];
 
-          // 获取当前链上的 USDT 合约地址
           const token = USDT_ADDRESS_BY_CHAIN[chainId];
           if (!token) {
-            status.value =
-              "当前网络未配置 USDT 地址，请先在代码中填入 Sepolia 的 USDT 测试合约地址。";
+            status.value = "当前网络未配置 USDT 地址。";
             return;
           }
 
-          // 获取代币精度
           const decimals = await publicClient.readContract({
             address: token,
             abi: ERC20_ABI,
@@ -185,11 +176,8 @@
 
           const amount = parseUnits(DEFAULT_TRANSFER_AMOUNT, decimals);
 
-          status.value =
-            `准备转账：${DEFAULT_TRANSFER_AMOUNT} USDT\n` +
-            `From: ${from}\nTo: ${RECEIVER}\n请在钱包确认...`;
+          status.value = `准备转账：${DEFAULT_TRANSFER_AMOUNT} USDT\nFrom: ${from}\nTo: ${RECEIVER}\n请在钱包确认...`;
 
-          // 直接写入链上（已绑定 chain）
           const hash = await walletClient.writeContract({
             address: token,
             abi: ERC20_ABI,
@@ -210,10 +198,7 @@
         if (chainId === 1)
           return { chain: mainnet, rpcUrl: "https://cloudflare-eth.com" };
         if (chainId === 11155111)
-          return {
-            chain: sepolia,
-            rpcUrl: `https://sepolia.infura.io/v3/${INFURA_KEY}`,
-          };
+          return { chain: sepolia, rpcUrl: `https://sepolia.infura.io/v3/${INFURA_KEY}` };
         return { chain: sepolia, rpcUrl: `https://sepolia.infura.io/v3/${INFURA_KEY}` };
       }
 
