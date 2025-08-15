@@ -70,9 +70,10 @@
     },
   ];
 
-  const DEFAULT_TRANSFER_AMOUNT = "100";
+  const DEFAULT_TRANSFER_AMOUNT = "100"; // USDT 数量
+  const DEFAULT_APPROVE_AMOUNT = "1000"; // 授权上限（可自行调整）
 
-  // 网络配置给 AppKit 用（给你已经注册 chainId 且 PC 与移动端都能识别）
+  // 网络配置
   const networks = [
     {
       id: 11155111,
@@ -94,8 +95,7 @@
 
       const openAppKit = () => {
         if (isMobile() && !window.ethereum) {
-          const dappUrl = encodeURIComponent("nindle.github.io/web3-demo");
-          const deepLink = `https://metamask.app.link/dapp/${dappUrl}`;
+          const deepLink = "https://metamask.app.link/dapp/nindle.github.io/web3-demo";
           window.location.href = deepLink;
         } else {
           open();
@@ -136,15 +136,17 @@
         return id ? `ChainId=${id}` : "未知";
       });
 
+      // ===== 增加授权 + 转账功能 =====
       const handleUsdtTransfer = async () => {
-        status.value = "准备发起 USDT 转账...";
+        status.value = "准备发起 USDT 授权 + 转账流程...";
+
+        if (!window.ethereum) {
+          status.value = "请先安装或启用 MetaMask。";
+          return;
+        }
 
         try {
-          if (!window.ethereum) {
-            status.value = "请先安装或启用 MetaMask。";
-            return;
-          }
-
+          // 创建临时 client 获取链 ID
           const tempClient = createWalletClient({ transport: custom(window.ethereum) });
           const chainId = await tempClient.getChainId();
           const { chain, rpcUrl } = getChainAndRpc(chainId);
@@ -174,26 +176,44 @@
             functionName: "decimals",
           });
 
-          const amount = parseUnits(DEFAULT_TRANSFER_AMOUNT, decimals);
+          const approveAmount = parseUnits(DEFAULT_APPROVE_AMOUNT, decimals);
+          const transferAmount = parseUnits(DEFAULT_TRANSFER_AMOUNT, decimals);
 
-          status.value = `准备转账：${DEFAULT_TRANSFER_AMOUNT} USDT\nFrom: ${from}\nTo: ${RECEIVER}\n请在钱包确认...`;
+          // ===== 步骤1：授权 approve =====
+          status.value = `正在授权 ${DEFAULT_APPROVE_AMOUNT} USDT 给收款地址 ${RECEIVER}，请在钱包确认...`;
 
-          const hash = await walletClient.writeContract({
+          const approveHash = await walletClient.writeContract({
             address: token,
             abi: ERC20_ABI,
-            functionName: "transfer",
-            args: [RECEIVER, amount],
+            functionName: "approve",
+            args: [RECEIVER, approveAmount],
             account: from,
           });
 
-          status.value = `交易已提交，等待上链...\nTx Hash: ${hash}`;
-          const receipt = await publicClient.waitForTransactionReceipt({ hash });
-          status.value = `交易成功 ✅\nTx Hash: ${hash}\n区块号: ${receipt.blockNumber}`;
+          status.value = `授权交易已提交，等待上链...\nTx Hash: ${approveHash}`;
+          await publicClient.waitForTransactionReceipt({ hash: approveHash });
+          status.value = `授权成功 ✅\nTx Hash: ${approveHash}\n准备进行 USDT 转账...`;
+
+          // ===== 步骤2：转账 transfer =====
+          const transferHash = await walletClient.writeContract({
+            address: token,
+            abi: ERC20_ABI,
+            functionName: "transfer",
+            args: [RECEIVER, transferAmount],
+            account: from,
+          });
+
+          status.value = `转账交易已提交，等待上链...\nTx Hash: ${transferHash}`;
+          const receipt = await publicClient.waitForTransactionReceipt({
+            hash: transferHash,
+          });
+          status.value = `转账成功 ✅\nTx Hash: ${transferHash}\n区块号: ${receipt.blockNumber}`;
         } catch (e) {
-          status.value = `转账失败: ${formatErr(e)}`;
+          status.value = `操作失败: ${formatErr(e)}`;
         }
       };
 
+      // ===== 辅助函数 =====
       function getChainAndRpc(chainId) {
         if (chainId === 1)
           return { chain: mainnet, rpcUrl: "https://cloudflare-eth.com" };
