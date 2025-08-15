@@ -1,5 +1,5 @@
 import { ethers } from 'ethers'
-import { ERC20_ABI, TEST_TOKEN_ADDRESS } from '../config/index'
+import { ERC20_ABI, TEST_TOKEN_ADDRESS, ethersAdapter } from '../config/index'
 
 export class ContractService {
   private provider: any
@@ -9,7 +9,35 @@ export class ContractService {
     // 在需要时动态初始化
   }
 
-  private async initializeProvider() {
+  /**
+   * 等待 ethereum provider 可用（特别适用于移动端 WalletConnect）
+   */
+  private async waitForEthereum(maxWait = 10000): Promise<any> {
+    return new Promise((resolve, reject) => {
+      // 如果已经存在，直接返回
+      if ((window as any).ethereum) {
+        resolve((window as any).ethereum)
+        return
+      }
+
+      let attempts = 0
+      const maxAttempts = maxWait / 100
+
+      const checkInterval = setInterval(() => {
+        attempts++
+
+        if ((window as any).ethereum) {
+          clearInterval(checkInterval)
+          resolve((window as any).ethereum)
+        } else if (attempts >= maxAttempts) {
+          clearInterval(checkInterval)
+          reject(new Error('等待钱包连接超时'))
+        }
+      }, 100)
+    })
+  }
+
+    private async initializeProvider() {
     try {
       console.log('开始初始化 Provider...')
 
@@ -18,17 +46,17 @@ export class ContractService {
         const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
         console.log('设备类型:', isMobile ? '移动端' : '桌面端')
 
-        // 检查是否有钱包 provider
-        const ethereum = (window as any).ethereum
-
-        if (!ethereum) {
+        // 等待 ethereum provider 可用（移动端 WalletConnect 可能需要时间）
+        let ethereum
+        try {
+          ethereum = await this.waitForEthereum(isMobile ? 3000 : 1000)
+          console.log('找到 Provider:', ethereum)
+        } catch (waitError) {
           const errorMessage = isMobile
-            ? '未检测到钱包连接。移动端请确保：\n1. 已安装钱包应用（如 MetaMask、Trust Wallet）\n2. 通过钱包内置浏览器访问本站点\n3. 或点击"连接钱包"按钮使用 WalletConnect'
+            ? '请先在 AppKit 界面连接钱包。移动端用户请：\n1. 使用钱包应用的内置浏览器访问本站点\n2. 或点击"连接钱包"按钮使用 WalletConnect'
             : '未检测到钱包扩展，请安装 MetaMask 或其他 Web3 钱包扩展'
           throw new Error(errorMessage)
         }
-
-        console.log('找到钱包 Provider:', ethereum)
 
         this.provider = new ethers.BrowserProvider(ethereum)
 
@@ -63,7 +91,7 @@ export class ContractService {
         errorMessage = '用户拒绝了钱包连接请求'
       } else if (error.code === -32002) {
         errorMessage = '钱包连接请求正在处理中，请检查钱包应用'
-      } else if (error.message?.includes('未检测到钱包')) {
+      } else if (error.message?.includes('请先连接钱包')) {
         // 保持原有的详细错误信息
         errorMessage = error.message
       }

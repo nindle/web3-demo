@@ -277,7 +277,7 @@ export default {
         const ethBal = await contractService.getEthBalance(accountInfo.value.address)
         ethBalance.value = parseFloat(ethBal).toFixed(4)
 
-                // 获取代币余额（使用当前设置的合约地址或默认地址）
+        // 获取代币余额（使用当前设置的合约地址或默认地址）
         const contractAddr = tokenTransfer.value.contractAddress || TEST_TOKEN_ADDRESS
         const tokenBal = await contractService.getTokenBalance(
           contractAddr,
