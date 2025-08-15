@@ -366,6 +366,7 @@ export default {
 }
 
 .contract-examples {
+  margin-top: 10px;
   display: flex;
   gap: 10px;
   flex-wrap: wrap;

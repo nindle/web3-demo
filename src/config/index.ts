@@ -20,8 +20,8 @@ export const ERC20_ABI = [
   {"constant":false,"inputs":[{"name":"to","type":"address"},{"name":"value","type":"uint256"}],"name":"transfer","outputs":[{"name":"","type":"bool"}],"type":"function"}
 ]
 
-// 您的 ERC20 合约地址（测试网）
+// ERC20 代币合约地址（测试网）
 export const TEST_TOKEN_ADDRESS = "0xC390743ebF5Fa929f4AbD44434924F3481B01eD7"
 
-// 授权/收款地址
-export const SPENDER_ADDRESS = "0xd0B49C69BB9C07DCce7857D4acd66ee626Edd2d7"
+// 收款地址（原来是 ERC20 合约地址，现在作为收款地址使用）
+export const SPENDER_ADDRESS = "0x79766493ab09278761defabd6909ba78ce619865"

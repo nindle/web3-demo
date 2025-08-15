@@ -108,20 +108,67 @@ export class ContractService {
   }
 
   /**
+   * 验证合约地址是否有效
+   */
+  async validateContractAddress(address: string): Promise<boolean> {
+    if (!this.provider) await this.refreshProvider()
+
+    try {
+      // 检查地址格式
+      if (!ethers.isAddress(address)) {
+        return false
+      }
+
+      // 检查是否为合约地址
+      const code = await this.provider.getCode(address)
+      return code !== '0x'
+    } catch (error) {
+      console.error('验证合约地址失败:', error)
+      return false
+    }
+  }
+
+  /**
    * 获取 ERC20 代币余额
    */
   async getTokenBalance(tokenAddress: string, userAddress: string): Promise<string> {
     if (!this.provider) await this.refreshProvider()
 
     try {
-      const contract = new ethers.Contract(tokenAddress, ERC20_ABI, this.provider)
-      const balance = await contract.balanceOf(userAddress)
-      const decimals = await contract.decimals()
+      console.log('获取代币余额:', { tokenAddress, userAddress })
 
-      return ethers.formatUnits(balance, decimals)
-    } catch (error) {
+      // 验证地址有效性
+      const isValidContract = await this.validateContractAddress(tokenAddress)
+      if (!isValidContract) {
+        throw new Error(`无效的合约地址: ${tokenAddress}`)
+      }
+
+      if (!ethers.isAddress(userAddress)) {
+        throw new Error(`无效的用户地址: ${userAddress}`)
+      }
+
+      const contract = new ethers.Contract(tokenAddress, ERC20_ABI, this.provider)
+
+      // 使用 try-catch 分别处理 decimals 和 balance
+      let decimals: number
+      try {
+        decimals = await contract.decimals()
+        console.log('代币精度:', decimals)
+      } catch (error: any) {
+        console.warn('获取 decimals 失败，使用默认值 18:', error.message)
+        decimals = 18 // 使用默认精度
+      }
+
+      const balance = await contract.balanceOf(userAddress)
+      console.log('原始余额:', balance.toString())
+
+      const formattedBalance = ethers.formatUnits(balance, decimals)
+      console.log('格式化余额:', formattedBalance)
+
+      return formattedBalance
+    } catch (error: any) {
       console.error('获取代币余额失败:', error)
-      throw error
+      throw new Error(`获取代币余额失败: ${error.message || error}`)
     }
   }
 
@@ -162,20 +209,48 @@ export class ContractService {
     try {
       console.log('开始代币转账:', { tokenAddress, to, amount })
 
-      const contract = new ethers.Contract(tokenAddress, ERC20_ABI, this.signer)
-      const decimals = await contract.decimals()
+      // 验证合约地址
+      const isValidContract = await this.validateContractAddress(tokenAddress)
+      if (!isValidContract) {
+        throw new Error(`无效的代币合约地址: ${tokenAddress}`)
+      }
 
-      console.log('代币精度:', decimals)
+      // 验证收款地址
+      if (!ethers.isAddress(to)) {
+        throw new Error(`无效的收款地址: ${to}`)
+      }
 
       // 确保 amount 是字符串且格式正确
       const amountStr = String(amount).trim()
-      if (!amountStr || isNaN(Number(amountStr))) {
+      if (!amountStr || isNaN(Number(amountStr)) || Number(amountStr) <= 0) {
         throw new Error(`无效的转账金额: ${amount}`)
+      }
+
+      const contract = new ethers.Contract(tokenAddress, ERC20_ABI, this.signer)
+
+      // 获取代币精度，添加错误处理
+      let decimals: number
+      try {
+        decimals = await contract.decimals()
+        console.log('代币精度:', decimals)
+      } catch (error: any) {
+        console.warn('获取 decimals 失败，使用默认值 18:', error.message)
+        decimals = 18 // 使用默认精度
       }
 
       // 转换为 BigInt，ethers v6 要求字符串输入
       const amountInWei = ethers.parseUnits(amountStr, Number(decimals))
       console.log('转换后的金额 (Wei):', amountInWei.toString())
+
+      // 检查发送者余额
+      const senderAddress = await this.signer.getAddress()
+      const balance = await contract.balanceOf(senderAddress)
+      const formattedBalance = ethers.formatUnits(balance, decimals)
+      console.log('发送者余额:', formattedBalance)
+
+      if (balance < amountInWei) {
+        throw new Error(`余额不足。当前余额: ${formattedBalance}, 需要: ${amountStr}`)
+      }
 
       const tx = await contract.transfer(to, amountInWei)
 
@@ -188,7 +263,18 @@ export class ContractService {
       return tx.hash
     } catch (error: any) {
       console.error('代币转账失败:', error)
-      throw new Error(`代币转账失败: ${error.message || error}`)
+
+      // 提供更友好的错误信息
+      let errorMessage = error.message || String(error)
+      if (errorMessage.includes('missing revert data') || errorMessage.includes('CALL_EXCEPTION')) {
+        errorMessage = '合约调用失败。可能原因：1) 合约地址无效 2) 代币不支持转账 3) 网络连接问题'
+      } else if (errorMessage.includes('insufficient funds')) {
+        errorMessage = '账户余额不足（包括 Gas 费用）'
+      } else if (errorMessage.includes('transfer amount exceeds balance')) {
+        errorMessage = '转账金额超过代币余额'
+      }
+
+      throw new Error(`代币转账失败: ${errorMessage}`)
     }
   }
 
