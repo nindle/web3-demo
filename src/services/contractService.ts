@@ -49,7 +49,7 @@ export class ContractService {
         // 等待 ethereum provider 可用（移动端 WalletConnect 可能需要时间）
         let ethereum
         try {
-          ethereum = await this.waitForEthereum(isMobile ? 3000 : 1000)
+          ethereum = await this.waitForEthereum(isMobile ? 30000 : 1000)
           console.log('找到 Provider:', ethereum)
         } catch (waitError) {
           const errorMessage = isMobile
