@@ -28,9 +28,12 @@
             v-model="quickTransfer.amount"
             type="number"
             step="0.1"
+            max="999999999999999"
             placeholder="输入转账金额"
             class="amount-input"
+            @input="validateAmount('quick', $event)"
           />
+          <small v-if="amountError.quick" class="error-text">{{ amountError.quick }}</small>
         </div>
         <button
           @click="quickSendToSpender"
@@ -64,9 +67,12 @@
             v-model="ethTransfer.amount"
             type="number"
             step="0.001"
+            max="999999999999999"
             placeholder="输入 ETH 数量"
             class="amount-input"
+            @input="validateAmount('eth', $event)"
           />
+          <small v-if="amountError.eth" class="error-text">{{ amountError.eth }}</small>
         </div>
         <button
           @click="sendEthTransfer"
@@ -105,9 +111,12 @@
             v-model="tokenTransfer.amount"
             type="number"
             step="0.1"
+            max="999999999999999"
             placeholder="输入代币数量"
             class="amount-input"
+            @input="validateAmount('token', $event)"
           />
+          <small v-if="amountError.token" class="error-text">{{ amountError.token }}</small>
         </div>
         <button
           @click="sendTokenTransfer"
@@ -176,6 +185,13 @@ export default {
       amount: ''
     })
 
+    // 金额验证错误信息
+    const amountError = ref({
+      quick: '',
+      eth: '',
+      token: ''
+    })
+
     // 计算属性
     const canTransferEth = computed(() => {
       return accountInfo.value.isConnected &&
@@ -200,6 +216,47 @@ export default {
     // 方法
     const clearError = () => {
       error.value = ''
+      // 同时清空金额验证错误
+      amountError.value.quick = ''
+      amountError.value.eth = ''
+      amountError.value.token = ''
+    }
+
+    // 金额验证函数
+    const validateAmount = (type: 'quick' | 'eth' | 'token', event: Event) => {
+      const target = event.target as HTMLInputElement
+      const value = target.value
+
+      // 清空之前的错误
+      amountError.value[type] = ''
+
+      if (!value) return
+
+      const numValue = Number(value)
+
+      // 检查是否为有效数字
+      if (isNaN(numValue) || numValue <= 0) {
+        amountError.value[type] = '请输入有效的正数'
+        return
+      }
+
+      // 检查是否超过最大值 (使用更安全的边界)
+      if (numValue >= 1e15) {
+        amountError.value[type] = '金额过大，请输入小于 1,000,000,000,000,000 的数值'
+        // 自动截断到最大值
+        target.value = '999999999999999'
+        if (type === 'quick') quickTransfer.value.amount = '999999999999999'
+        else if (type === 'eth') ethTransfer.value.amount = '999999999999999'
+        else if (type === 'token') tokenTransfer.value.amount = '999999999999999'
+        return
+      }
+
+      // 检查小数位数是否合理
+      const decimalPlaces = (value.split('.')[1] || '').length
+      if (decimalPlaces > 18) {
+        amountError.value[type] = '小数位数过多，最多支持18位小数'
+        return
+      }
     }
 
     const formatAddress = (address: string) => {
@@ -270,7 +327,7 @@ export default {
       }
     }
 
-                const sendTokenTransfer = async () => {
+    const sendTokenTransfer = async () => {
       if (!canTransferToken.value) return
 
       tokenTransferLoading.value = true
@@ -282,6 +339,7 @@ export default {
 
         // 使用自定义合约地址或默认地址
         const contractAddr = tokenTransfer.value.contractAddress || TEST_TOKEN_ADDRESS
+        console.log('contractAddr', contractAddr, 'to', tokenTransfer.value.to, 'amount', tokenTransfer.value.amount)
 
         const txHash = await contractService.sendTokenTransfer(
           contractAddr,
@@ -421,6 +479,8 @@ export default {
       accountInfo,
       ethBalance,
       tokenBalance,
+      amountError,
+      validateAmount,
       loading,
       ethTransferLoading,
       tokenTransferLoading,
@@ -778,6 +838,20 @@ export default {
   margin-top: 8px;
   display: block;
   font-style: italic;
+}
+
+/* 错误信息样式 */
+.error-text {
+  color: #e74c3c;
+  font-size: 12px;
+  margin-top: 4px;
+  display: block;
+  font-weight: 500;
+}
+
+.amount-input.error {
+  border-color: #e74c3c;
+  box-shadow: 0 0 0 2px rgba(231, 76, 60, 0.1);
 }
 
 /* 动画效果 */

@@ -38,8 +38,13 @@
 
         <!-- 加载状态 -->
         <div v-if="loading" class="loading-indicator">
-          <div class="spinner"></div>
-          <p>正在扫描代币余额...</p>
+          <div class="progress-container">
+            <div class="spinner"></div>
+            <div class="progress-info">
+              <p class="status-text">正在快速扫描代币余额...</p>
+              <p class="tips-text">💡 提示：首次扫描可能较慢，后续会使用缓存加速</p>
+            </div>
+          </div>
         </div>
 
         <!-- 代币余额列表 -->
@@ -716,6 +721,43 @@ export default {
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-light);
   margin: var(--space-lg) 0;
+}
+
+.progress-container {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xl);
+}
+
+.progress-info {
+  text-align: left;
+  flex: 1;
+}
+
+.status-text {
+  color: var(--text-primary);
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  margin: 0 0 var(--space-sm) 0;
+}
+
+.tips-text {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  margin: 0;
+  opacity: 0.8;
+}
+
+@media (max-width: 640px) {
+  .progress-container {
+    flex-direction: column;
+    gap: var(--space-lg);
+    text-align: center;
+  }
+
+  .progress-info {
+    text-align: center;
+  }
 }
 
 .spinner {

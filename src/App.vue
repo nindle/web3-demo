@@ -10,6 +10,9 @@
       </header>
 
       <main class="app-main">
+        <!-- 钱包连接状态 -->
+        <WalletConnectionStatus @open-mobile-guide="openMobileGuide" />
+
         <!-- 代币余额查看 -->
         <section class="balance-section">
           <TokenBalanceView @token-selected="handleTokenSelected" />
@@ -28,6 +31,9 @@
           </section>
         </div>
       </main>
+
+      <!-- 移动端钱包连接指南 -->
+      <MobileWalletGuide ref="mobileGuide" />
    </div>
 </template>
 
@@ -44,6 +50,8 @@ import InfoList from "./components/InfoList.vue"
 import TransferComponent from "./components/TransferComponent.vue"
 import ContractInteraction from "./components/ContractInteraction.vue"
 import TokenBalanceView from "./components/TokenBalanceView.vue"
+import MobileWalletGuide from "./components/MobileWalletGuide.vue"
+import WalletConnectionStatus from "./components/WalletConnectionStatus.vue"
 
 const metadata = {
   name: "Web3 Demo",
@@ -62,11 +70,26 @@ createAppKit({
   features: {
     analytics: true, // Optional - defaults to your Cloud configuration
     email: false, // 禁用邮箱登录，专注钱包连接
-    socials: false // 禁用社交登录
+    socials: false, // 禁用社交登录
+    swaps: false,
+    onramp: false
   },
   themeVariables: {
     '--w3m-accent': '#000000',
   },
+  // 添加移动端支持配置
+  includeWalletIds: [
+    'c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96', // MetaMask
+    '4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0', // Trust Wallet
+    'fd20dc426fb37566d803205b19bbc1d4096b248ac04548e3cfb6b3a38bd033aa', // Coinbase Wallet
+    '1ae92b26df02f0abca6304df07debccd18262fdf5fe82daa81593582dac9a369', // Rainbow
+    '19177a98252e07ddfc9af2083ba8e07ef627cb6103467ffebb3f8f4205fd7927', // Ledger Live
+  ],
+  // 启用所有连接器
+  enableWalletConnect: true,
+  enableInjected: true,
+  enableEIP6963: true,
+  enableCoinbase: true
 })
 
 const modal = useAppKit();
@@ -78,12 +101,20 @@ export default {
     InfoList,
     TransferComponent,
     ContractInteraction,
-    TokenBalanceView
+    TokenBalanceView,
+    MobileWalletGuide,
+    WalletConnectionStatus
   },
   methods: {
     handleTokenSelected(token: any) {
       // 这里可以处理选中的代币，例如自动填充转账表单
       console.log('选中的代币:', token)
+    },
+    openMobileGuide() {
+      // 打开移动端钱包连接指南
+      if (this.$refs.mobileGuide && typeof (this.$refs.mobileGuide as any).openGuide === 'function') {
+        (this.$refs.mobileGuide as any).openGuide()
+      }
     }
   }
 };

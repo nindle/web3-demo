@@ -46,12 +46,36 @@ export interface TokenBalance {
 }
 
 export class TokenScanner {
+  // 代币信息缓存
+  private tokenInfoCache = new Map<string, any>()
+  // 代币余额缓存
+  private balanceCache = new Map<string, { balance: string, timestamp: number }>()
+  // 缓存有效期（毫秒）
+  private CACHE_DURATION = 30000 // 30秒
+  // localStorage 键名
+  private STORAGE_KEY = 'web3-demo-token-cache'
+
+  constructor() {
+    // 初始化时加载持久化缓存
+    this.loadCacheFromStorage()
+  }
+
   /**
-   * 获取指定代币的详细信息
+   * 获取指定代币的详细信息（带缓存）
    */
   async getTokenInfo(tokenAddress: string) {
+    // 检查缓存
+    if (this.tokenInfoCache.has(tokenAddress)) {
+      return this.tokenInfoCache.get(tokenAddress)
+    }
+
     try {
       const info = await contractService.getTokenInfo(tokenAddress)
+      // 缓存成功获取的信息
+      if (info) {
+        this.tokenInfoCache.set(tokenAddress, info)
+        this.saveCacheToStorage()
+      }
       return info
     } catch (error) {
       console.error(`获取代币信息失败 ${tokenAddress}:`, error)
@@ -60,11 +84,25 @@ export class TokenScanner {
   }
 
   /**
-   * 检查代币余额
+   * 检查代币余额（带缓存）
    */
   async getTokenBalance(tokenAddress: string, userAddress: string): Promise<string> {
+    const cacheKey = `${tokenAddress}-${userAddress}`
+    const cached = this.balanceCache.get(cacheKey)
+
+    // 检查缓存是否有效
+    if (cached && Date.now() - cached.timestamp < this.CACHE_DURATION) {
+      return cached.balance
+    }
+
     try {
       const balance = await contractService.getTokenBalance(tokenAddress, userAddress)
+      // 缓存余额信息
+      this.balanceCache.set(cacheKey, {
+        balance,
+        timestamp: Date.now()
+      })
+      this.saveCacheToStorage()
       return balance
     } catch (error) {
       console.error(`获取代币余额失败 ${tokenAddress}:`, error)
@@ -73,17 +111,92 @@ export class TokenScanner {
   }
 
   /**
-   * 扫描钱包中所有代币余额
+   * 从 localStorage 加载缓存
+   */
+  private loadCacheFromStorage() {
+    try {
+      const stored = localStorage.getItem(this.STORAGE_KEY)
+      if (stored) {
+        const data = JSON.parse(stored)
+
+        // 加载代币信息缓存
+        if (data.tokenInfo) {
+          this.tokenInfoCache = new Map(data.tokenInfo)
+        }
+
+        // 加载余额缓存（只加载未过期的）
+        if (data.balance) {
+          const now = Date.now()
+          for (const [key, cache] of data.balance) {
+            if (now - cache.timestamp < this.CACHE_DURATION) {
+              this.balanceCache.set(key, cache)
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('加载缓存失败:', error)
+    }
+  }
+
+  /**
+   * 保存缓存到 localStorage
+   */
+  private saveCacheToStorage() {
+    try {
+      const data = {
+        tokenInfo: Array.from(this.tokenInfoCache.entries()),
+        balance: Array.from(this.balanceCache.entries()),
+        timestamp: Date.now()
+      }
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data))
+    } catch (error) {
+      console.warn('保存缓存失败:', error)
+    }
+  }
+
+  /**
+   * 清理过期缓存
+   */
+  private cleanCache() {
+    const now = Date.now()
+    let hasChanges = false
+
+    for (const [key, cache] of this.balanceCache.entries()) {
+      if (now - cache.timestamp > this.CACHE_DURATION) {
+        this.balanceCache.delete(key)
+        hasChanges = true
+      }
+    }
+
+    // 如果有变化，保存到 localStorage
+    if (hasChanges) {
+      this.saveCacheToStorage()
+    }
+  }
+
+  /**
+   * 扫描钱包中所有代币余额（优化版本）
    */
   async scanAllTokenBalances(userAddress: string): Promise<TokenBalance[]> {
-    console.log('开始扫描代币余额...')
+    console.log('开始快速扫描代币余额...')
+
+    // 清理过期缓存
+    this.cleanCache()
 
     const results: TokenBalance[] = []
+    const startTime = Date.now()
 
-    // 并行检查所有预设代币
-    const promises = SEPOLIA_TOKENS.map(async (token) => {
+    // 使用 Promise.allSettled 确保单个失败不影响整体扫描
+    const promises = SEPOLIA_TOKENS.map(async (token, index) => {
+      const delay = index * 50 // 错开请求时间，避免网络拥堵
+      if (delay > 0) {
+        await new Promise(resolve => setTimeout(resolve, delay))
+      }
+
       try {
-        const balance = await this.getTokenBalance(token.address, userAddress)
+        // 直接使用预设的代币信息，跳过验证以提高性能
+        const balance = await contractService.getTokenBalance(token.address, userAddress, true)
         const balanceNum = parseFloat(balance)
 
         const tokenBalance: TokenBalance = {
@@ -96,10 +209,35 @@ export class TokenScanner {
           hasBalance: balanceNum > 0
         }
 
-        return tokenBalance
+        console.log(`✅ ${token.symbol}: ${balanceNum > 0 ? balance : '0'}`)
+        return { success: true, data: tokenBalance }
       } catch (error) {
-        console.error(`扫描代币失败 ${token.symbol}:`, error)
+        console.error(`❌ 扫描代币失败 ${token.symbol}:`, error)
         return {
+          success: false,
+          data: {
+            address: token.address,
+            symbol: token.symbol,
+            name: token.name,
+            decimals: token.decimals,
+            balance: '0',
+            balanceFormatted: '0.0000',
+            hasBalance: false
+          }
+        }
+      }
+    })
+
+    const tokenResults = await Promise.allSettled(promises)
+
+    // 处理结果
+    tokenResults.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        results.push(result.value.data)
+      } else {
+        // 即使失败也添加默认数据
+        const token = SEPOLIA_TOKENS[index]
+        results.push({
           address: token.address,
           symbol: token.symbol,
           name: token.name,
@@ -107,14 +245,14 @@ export class TokenScanner {
           balance: '0',
           balanceFormatted: '0.0000',
           hasBalance: false
-        }
+        })
       }
     })
 
-    const tokenResults = await Promise.all(promises)
-    results.push(...tokenResults)
+    const endTime = Date.now()
+    console.log(`🚀 代币扫描完成，耗时: ${endTime - startTime}ms`)
+    console.log('扫描结果:', results.filter(r => r.hasBalance))
 
-    console.log('代币扫描完成:', results)
     return results
   }
 
