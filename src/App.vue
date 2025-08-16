@@ -151,9 +151,6 @@ export default {
 
 /* 头部区域 */
 .app-header {
-  position: sticky;
-  top: 0;
-  z-index: var(--z-sticky);
   background: var(--background-overlay);
   backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--border-light);
