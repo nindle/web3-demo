@@ -90,8 +90,7 @@
       const networkData = useAppKitNetwork();
       const status = ref("准备就绪。");
 
-      const isMobile = () => /Mobi|Android|iPhone/i.test(navigator.userAgent);
-
+      const isMobile = () => /Android|iPhone|iPad|Mobi|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
       const openAppKit = () => {
         if (isMobile() && !window.ethereum) {
           const deepLink = "https://metamask.app.link/dapp/nindle.github.io/web3-demo";
@@ -150,6 +149,7 @@
             transport: custom(window.ethereum),
           });
           const chainId = await tempClient.getChainId();
+          console.log(chainId, "chainId")
           const { chain, rpcUrl } = getChainAndRpc(chainId);
 
           const walletClient = createWalletClient({
